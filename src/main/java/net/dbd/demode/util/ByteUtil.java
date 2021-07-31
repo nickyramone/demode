@@ -33,7 +33,7 @@ public class ByteUtil {
     }
 
     public static void toLittleEndian(long num, byte[] result) {
-        toByteArray(num, Integer.BYTES, true, result);
+        toByteArray(num, Long.BYTES, true, result);
     }
 
     private static byte[] toByteArray(long byteSeq, int numBytes, boolean toLittleEndian) {

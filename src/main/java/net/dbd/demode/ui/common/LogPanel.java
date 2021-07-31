@@ -10,15 +10,32 @@ import static net.dbd.demode.ui.common.UiHelper.strutBorder;
  */
 public class LogPanel extends JPanel {
 
-    private final JTextArea console;
+    private static final Color BG_COLOR = Color.WHITE;
+
+    private JTextArea console;
 
     public LogPanel() {
+        super(new GridBagLayout());
+        setBackground(BG_COLOR);
+        draw();
+    }
+
+    private void draw() {
         console = new JTextArea(null, 10, 70);
         console.setBorder(strutBorder(Color.BLUE));
+        console.setFont(console.getFont().deriveFont(12f));
+        console.setEditable(false);
 
         var scrollPane = new JScrollPane(console);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-        add(scrollPane);
+
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridwidth = GridBagConstraints.REMAINDER;
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weightx = 1.0;
+        gbc.weighty = 1.0;
+
+        add(scrollPane, gbc);
     }
 
 

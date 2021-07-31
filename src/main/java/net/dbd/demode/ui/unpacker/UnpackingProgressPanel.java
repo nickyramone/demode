@@ -1,13 +1,12 @@
 package net.dbd.demode.ui.unpacker;
 
-import lombok.Builder;
 import net.dbd.demode.pak.ExtractionStats;
 import net.dbd.demode.ui.common.NameValueElapsedField;
-import net.dbd.demode.ui.common.NameValueField;
 import net.dbd.demode.ui.common.NameValuePartialIntField;
 
 import javax.swing.*;
 import java.awt.*;
+import java.util.function.Supplier;
 
 import static net.dbd.demode.ui.common.UiHelper.strutBorder;
 
@@ -18,155 +17,129 @@ public class UnpackingProgressPanel extends JPanel {
 
     private static final int BYTES_PER_KBYTE = 1000;
     private static final int MILLIS_PER_SECOND = 1000;
+    private static final Color BG_COLOR = Color.WHITE;
 
-    @Builder
     private static final class ProgressPanelElements {
-
-        private JProgressBar progressBar;
+        private JLabel packagesField;
         private NameValuePartialIntField filesField;
         private NameValuePartialIntField sizeField;
         private NameValueElapsedField elapsedField;
         private NameValueElapsedField etaField;
+        private JProgressBar progressBar;
         private Timer elapsedTimer;
         private ExtractionStats stats;
     }
 
     private ProgressPanelElements partialProgress;
     private ProgressPanelElements totalProgress;
-    private NameValueField totalPakPanelTitle;
-    private NameValueField currentPakPanelTitle;
 
 
     public UnpackingProgressPanel() {
-
+        setBackground(BG_COLOR);
         setLayout(new GridBagLayout());
         setBorder(strutBorder(Color.MAGENTA));
+        setMaximumSize(new Dimension(550, 200));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        drawPartialProgressPanel(gbc);
-        drawTotalProgressPanel(gbc);
+        partialProgress = createProgressPanelElements();
+        totalProgress = createProgressPanelElements();
+
+        drawSingleProgress("Current package:", 0, partialProgress);
+        drawSingleProgress("Total packages:", 3, totalProgress);
     }
 
 
-    private void drawPartialProgressPanel(GridBagConstraints gbc) {
-        currentPakPanelTitle = new NameValueField("Current package:");
+    private void drawSingleProgress(String title, int startRow, ProgressPanelElements elements) {
 
-        var progressBar = new JProgressBar(0, 100);
-        progressBar.setValue(0);
-        progressBar.setStringPainted(true);
-        progressBar.setMinimumSize(new Dimension(300, 20));
-        progressBar.setPreferredSize(new Dimension(300, 20));
-
-        partialProgress = ProgressPanelElements.builder()
-                .filesField(new NameValuePartialIntField("files:"))
-                .sizeField(new NameValuePartialIntField("size [kB]:"))
-                .elapsedField(new NameValueElapsedField("elapsed:"))
-                .etaField(new NameValueElapsedField("ETA:"))
-                .progressBar(progressBar)
-                .elapsedTimer(new Timer(MILLIS_PER_SECOND, e -> refreshElapsed(partialProgress)))
-                .build();
-
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        add(partialProgress.filesField, gbc);
-
-        gbc.gridx = 2;
-        gbc.gridy = 0;
-        add(partialProgress.sizeField, gbc);
-
-        gbc.gridx = 3;
-        gbc.gridy = 0;
-        add(partialProgress.elapsedField, gbc);
-
-        gbc.gridx = 4;
-        gbc.gridy = 0;
-        add(partialProgress.etaField, gbc);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.weightx = 1;
 
         gbc.gridx = 0;
-        gbc.gridy = 1;
-        add(currentPakPanelTitle, gbc);
+        gbc.gridy = startRow + 1;
+        add(new JLabel(title), gbc);
 
         gbc.gridx = 1;
-        gbc.gridy = 1;
+        add(elements.packagesField, gbc);
+
+        gbc.gridx = 2;
+        gbc.gridy = startRow;
+        add(elements.filesField, gbc);
+
+        gbc.gridx = 3;
+        gbc.gridy = startRow;
+        add(elements.sizeField, gbc);
+
+        gbc.gridx = 4;
+        gbc.gridy = startRow;
+        add(elements.elapsedField, gbc);
+
+        gbc.gridx = 5;
+        gbc.gridy = startRow;
+        add(elements.etaField, gbc);
+
+        gbc.gridx = 2;
+        gbc.gridy = startRow + 1;
         gbc.gridwidth = 4;
-        add(partialProgress.progressBar, gbc);
+        add(elements.progressBar, gbc);
         gbc.gridwidth = 1;
 
         gbc.gridx = 0;
-        gbc.gridy = 2;
-        gbc.gridwidth = 5;
+        gbc.gridy = startRow + 2;
+        gbc.gridwidth = 6;
         add(Box.createRigidArea(new Dimension(1, 15)), gbc);
         gbc.gridwidth = 1;
     }
 
-    private void drawTotalProgressPanel(GridBagConstraints gbc) {
-
-        totalPakPanelTitle = new NameValueField("Total packages:");
-
+    private ProgressPanelElements createProgressPanelElements() {
         var progressBar = new JProgressBar(0, 100);
         progressBar.setValue(0);
         progressBar.setStringPainted(true);
-        progressBar.setMinimumSize(new Dimension(300, 20));
-        progressBar.setPreferredSize(new Dimension(300, 20));
+        progressBar.setMinimumSize(new Dimension(400, 20));
+        progressBar.setPreferredSize(new Dimension(400, 20));
 
-        totalProgress = ProgressPanelElements.builder()
-                .filesField(new NameValuePartialIntField("files:"))
-                .sizeField(new NameValuePartialIntField("size [kB]:"))
-                .elapsedField(new NameValueElapsedField("elapsed:"))
-                .etaField(new NameValueElapsedField("ETA:"))
-                .progressBar(progressBar)
-                .elapsedTimer(new Timer(MILLIS_PER_SECOND, e -> refreshElapsed(totalProgress)))
-                .build();
+        var packagesLabel = new JLabel("0");
+        packagesLabel.setPreferredSize(new Dimension(20, 25));
+        packagesLabel.setMinimumSize(new Dimension(20, 25));
 
-        gbc.gridx = 1;
-        gbc.gridy = 3;
-        add(totalProgress.filesField, gbc);
+        var elements = new ProgressPanelElements();
+        elements.packagesField = createAndDecorate(() -> packagesLabel);
+        elements.filesField = createAndDecorate(() -> new NameValuePartialIntField("files:"));
+        elements.sizeField = createAndDecorate(() -> new NameValuePartialIntField("size [kB]:"));
+        elements.elapsedField = createAndDecorate(() -> new NameValueElapsedField("elapsed:"));
+        elements.etaField = createAndDecorate(() -> new NameValueElapsedField("ETA:"));
+        elements.progressBar = progressBar;
+        elements.elapsedTimer = new Timer(MILLIS_PER_SECOND, e -> refreshElapsed(elements));
 
-        gbc.gridx = 2;
-        gbc.gridy = 3;
-        add(totalProgress.sizeField, gbc);
-
-        gbc.gridx = 3;
-        gbc.gridy = 3;
-        add(totalProgress.elapsedField, gbc);
-
-        gbc.gridx = 4;
-        gbc.gridy = 3;
-        add(totalProgress.etaField, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = 4;
-        add(totalPakPanelTitle, gbc);
-
-
-        gbc.gridx = 1;
-        gbc.gridy = 4;
-        gbc.gridwidth = 4;
-        add(totalProgress.progressBar, gbc);
+        return elements;
     }
 
-    public void startTotal(ExtractionStats stats, int totalPaks) {
-        totalProgress.stats = stats;
-        totalProgress.elapsedTimer.start();
-        totalProgress.filesField.setTotalValue(stats.getFilesToExtract());
-        totalProgress.filesField.setCurrentValue(0);
-        totalProgress.sizeField.setTotalValue(bytesToKilobytes(stats.getBytesToExtract()));
-        totalProgress.sizeField.setCurrentValue(0);
-        totalProgress.progressBar.setValue(0);
 
-        totalPakPanelTitle.setValue(totalPaks);
+    private <T extends JComponent> T createAndDecorate(Supplier<T> factory) {
+        T component = factory.get();
+        component.setBackground(BG_COLOR);
+        component.setBorder(strutBorder(Color.BLACK));
+
+        return component;
+    }
+
+
+    public void startTotal(ExtractionStats stats, int totalPaks) {
+        initProgressElements(totalProgress, stats, totalPaks);
     }
 
     public void startPackage(ExtractionStats stats, int packageNum) {
-        partialProgress.stats = stats;
-        partialProgress.elapsedTimer.start();
-        partialProgress.filesField.setTotalValue(stats.getFilesToExtract());
-        partialProgress.filesField.setCurrentValue(0);
-        partialProgress.sizeField.setTotalValue(bytesToKilobytes(stats.getBytesToExtract()));
-        partialProgress.sizeField.setCurrentValue(0);
-        partialProgress.progressBar.setValue(0);
+        initProgressElements(partialProgress, stats, packageNum);
+    }
 
-        currentPakPanelTitle.setValue(packageNum);
+    private void initProgressElements(ProgressPanelElements elements, ExtractionStats stats, int packageNum) {
+        elements.stats = stats;
+        elements.packagesField.setText(String.valueOf(packageNum));
+        elements.elapsedTimer.start();
+        elements.filesField.setTotalValue(stats.getFilesToExtract());
+        elements.filesField.setCurrentValue(0);
+        elements.sizeField.setTotalValue(bytesToKilobytes(stats.getBytesToExtract()));
+        elements.sizeField.setCurrentValue(0);
+        elements.progressBar.setValue(0);
     }
 
 
@@ -213,6 +186,21 @@ public class UnpackingProgressPanel extends JPanel {
 
         if (percentComplete != progressBar.getValue()) {
             progressBar.setValue(percentComplete);
+        }
+    }
+
+    public void showPartialProgress() {
+        setPartialProgressVisible(true);
+    }
+
+    public void hidePartialProgress() {
+        setPartialProgressVisible(false);
+    }
+
+    private void setPartialProgressVisible(boolean visible) {
+        Component[] components = getComponents();
+        for (int i = 0; i < 8; i++) {
+            components[i].setVisible(visible);
         }
     }
 

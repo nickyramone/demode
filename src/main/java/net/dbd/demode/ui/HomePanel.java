@@ -1,7 +1,8 @@
 package net.dbd.demode.ui;
 
 import net.dbd.demode.config.AppProperties;
-import net.dbd.demode.service.UserSettings;
+import net.dbd.demode.config.UserSettings;
+import net.dbd.demode.service.DbdPathService;
 import net.dbd.demode.ui.common.UiHelper;
 
 import javax.swing.*;
@@ -10,6 +11,7 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.nio.file.Path;
 
 import static net.dbd.demode.ui.common.UiHelper.strutBorder;
 
@@ -22,11 +24,13 @@ public class HomePanel extends JPanel {
 
     private final AppProperties appProperties;
     private final UserSettings userSettings;
+    private final DbdPathService dbdPathService;
 
 
-    public HomePanel(AppProperties appProperties, UserSettings userSettings) {
+    public HomePanel(AppProperties appProperties, UserSettings userSettings, DbdPathService dbdPathService) {
         this.appProperties = appProperties;
         this.userSettings = userSettings;
+        this.dbdPathService = dbdPathService;
 
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         setBackground(BG_COLOR);
@@ -68,7 +72,7 @@ public class HomePanel extends JPanel {
         panel.add(dbdFolderRow);
 
         JLabel dbdFolderInputLabel = new JLabel();
-        dbdFolderInputLabel.setText("DBD installation folder:");
+        dbdFolderInputLabel.setText("DBD home path:");
         dbdFolderRow.add(dbdFolderInputLabel);
 
         JTextField dirInput = createDbdFolderTextField();
@@ -97,21 +101,34 @@ public class HomePanel extends JPanel {
 
 
     private JTextField createDbdFolderTextField() {
+        String dbdPath = userSettings.getDbdHomePath();
+
+        if (dbdPath == null) {
+            dbdPath = dbdPathService.findDbdInstallationPath()
+                    .map(Path::toString)
+                    .orElse(null);
+
+            if (dbdPath != null) {
+                userSettings.setDbdHomePath(dbdPath);
+            }
+        }
+
+
         JTextField dirInput = new JTextField();
-        dirInput.setPreferredSize(new Dimension(300, 25));
-        dirInput.setText(userSettings.getDbdDirectory());
+        dirInput.setPreferredSize(new Dimension(400, 25));
+        dirInput.setText(dbdPath);
 
         dirInput.getDocument().addDocumentListener(new DocumentListener() {
             public void changedUpdate(DocumentEvent e) {
-                userSettings.setDbdDirectory(dirInput.getText());
+                userSettings.setDbdHomePath(dirInput.getText());
             }
 
             public void removeUpdate(DocumentEvent e) {
-                userSettings.setDbdDirectory(dirInput.getText());
+                userSettings.setDbdHomePath(dirInput.getText());
             }
 
             public void insertUpdate(DocumentEvent e) {
-                userSettings.setDbdDirectory(dirInput.getText());
+                userSettings.setDbdHomePath(dirInput.getText());
             }
         });
 

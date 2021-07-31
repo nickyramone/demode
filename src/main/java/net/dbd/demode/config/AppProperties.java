@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
 import java.util.Properties;
 
 /**
@@ -17,20 +18,23 @@ import java.util.Properties;
 @Slf4j
 public class AppProperties {
 
-    private Properties properties;
+    private final Properties properties;
+
 
     public AppProperties() throws IOException, URISyntaxException {
         properties = new Properties();
         properties.load(AppProperties.class.getClassLoader().getResourceAsStream("app.properties"));
 
         URI execUri = Boot.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        String appHomePath = new File(execUri).toPath().getParent().toString();
-        System.setProperty("app.home", appHomePath);
-
+        Path appHomePath = new File(execUri).toPath().getParent();
         properties.put("app.home", appHomePath);
 
-        log.info("App home: {}", properties.getProperty("app.home"));
+        log.info("App home: {}", appHomePath);
         log.info("App version: {}", properties.getProperty("app.version"));
+    }
+
+    public Path getAppHome() {
+        return (Path) properties.get("app.home");
     }
 
     public String getAppName() {
@@ -43,6 +47,10 @@ public class AppProperties {
 
     public String getAppVersion() {
         return get("app.version");
+    }
+
+    public String getAppAboutInfo() {
+        return get("app.about");
     }
 
     private String get(String key) {

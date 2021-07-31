@@ -19,12 +19,15 @@ import java.util.Map;
 public final class ResourceFactory {
 
     private static final Map<Icon, ImageIcon> iconCache = new HashMap<>();
+    private static final String APP_BACKGROUND_LOGO_PATH = "/images/background_logo.png";
 
     public enum Icon {
-        APP("/icons/app.png"),
-        FILE_BROWSER("/icons/folder.png"),
-        HOME("/icons/home.png"),
-        UNPACK("/icons/unpack.png");
+        APP("/images/icons/app.png"),
+        BROOM("/images/icons/broom.png"),
+        FILE_BROWSER("/images/icons/folder.png"),
+        HOME("/images/icons/home.png"),
+        INFO("/images/icons/info.png"),
+        UNPACK("/images/icons/unpack.png");
 
         final String imagePath;
 
@@ -39,6 +42,13 @@ public final class ResourceFactory {
 
         return Toolkit.getDefaultToolkit().getImage(imageUrl);
     }
+
+    public Image getAppBackgroundLogo() {
+        URL imageUrl = ResourceFactory.class.getResource(APP_BACKGROUND_LOGO_PATH);
+
+        return Toolkit.getDefaultToolkit().getImage(imageUrl);
+    }
+
 
     public ImageIcon getIcon(Icon icon) {
         ImageIcon imageIcon = iconCache.get(icon);

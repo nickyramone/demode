@@ -1,6 +1,6 @@
 package net.dbd.demode.ui.common;
 
-import net.dbd.demode.util.TimeFormatUtil;
+import net.dbd.demode.util.format.TimeFormatUtil;
 
 import javax.swing.*;
 

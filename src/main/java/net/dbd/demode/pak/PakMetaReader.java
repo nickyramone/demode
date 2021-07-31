@@ -1,6 +1,6 @@
 package net.dbd.demode.pak;
 
-import lombok.RequiredArgsConstructor;
+import lombok.experimental.UtilityClass;
 import net.dbd.demode.pak.domain.*;
 import net.dbd.demode.util.io.RandomAccessFileReader;
 import org.apache.commons.codec.binary.Hex;
@@ -13,29 +13,27 @@ import java.util.List;
 
 
 /**
- * Caveats: be careful when reading integers from the pak file as it uses little-endian while JVM is big-endian.
+ * Helper for writing pak file metadata.
  *
  * @author Nicky Ramone
  */
-@RequiredArgsConstructor
+@UtilityClass
 public class PakMetaReader {
 
     private static final boolean IS_LITTLE_ENDIAN = true;
 
 
-    // TODO: remove mountPointsRoot: we need to keep track of the exact original path
     public Pak parse(File pakFilename) {
         return parse(pakFilename, Path.of("./"));
     }
 
     public Pak parse(File pakFilename, Path mountPointsRoot) {
         Pak pak = new Pak();
-        pak.setFile(pakFilename);
 
         try {
             try (RandomAccessFileReader reader = new RandomAccessFileReader(pakFilename, IS_LITTLE_ENDIAN)) {
-                pak.setPakInfo(readFooter(reader));
-                pak.setPakIndex(readTableOfContents(reader, pak.getPakInfo().getIndexOffset(), mountPointsRoot));
+                pak.setInfo(readFooter(reader));
+                pak.setIndex(readIndex(reader, pak.getInfo().getIndexOffset(), mountPointsRoot));
             }
         } catch (IOException e) {
             throw new RuntimeException("Failed to parse file.", e);
@@ -63,11 +61,11 @@ public class PakMetaReader {
     }
 
 
-    private PakIndex readTableOfContents(RandomAccessFileReader reader, long tocOffset, Path mountPointsRoot) throws IOException {
+    private PakIndex readIndex(RandomAccessFileReader reader, long tocOffset, Path mountPointsRoot) throws IOException {
         PakIndex pakIndex = new PakIndex();
         reader.seek(tocOffset);
         readMountPoint(reader, pakIndex, mountPointsRoot);
-        readTocEntries(reader, pakIndex);
+        readIndexEntries(reader, pakIndex);
 
         return pakIndex;
     }
@@ -81,19 +79,18 @@ public class PakMetaReader {
         pakIndex.setMountPoint(normalizedMountPath);
     }
 
-    private void readTocEntries(RandomAccessFileReader reader, PakIndex pakIndex) throws IOException {
+    private void readIndexEntries(RandomAccessFileReader reader, PakIndex pakIndex) throws IOException {
         int numFiles = reader.readInt();
-        pakIndex.setNumEntries(numFiles);
 
         for (int i = 0; i < numFiles; i++) {
-            pakIndex.addEntry(readTocEntry(reader));
+            pakIndex.addEntry(readIndexEntry(reader));
         }
     }
 
-    private PakEntry readTocEntry(RandomAccessFileReader reader) throws IOException {
+    private PakEntry readIndexEntry(RandomAccessFileReader reader) throws IOException {
         PakEntry entry = new PakEntry();
 
-        entry.setFilename(readPakString(reader));
+        entry.setFilePath(Path.of(readPakString(reader)));
         entry.setOffset(reader.readLong());
         entry.setCompressedSize(reader.readLong());
         entry.setSize(reader.readLong());
@@ -101,7 +98,7 @@ public class PakMetaReader {
         entry.setHash(reader.readHexString(20));
 
         if (entry.isCompressed()) {
-            entry.getBlocks().addAll(readFileChunkDescriptors(reader));
+            entry.getBlocks().addAll(readFileBlockDescriptors(reader));
         }
 
         entry.setEncrypted(reader.read() != 0);
@@ -110,7 +107,7 @@ public class PakMetaReader {
             throw new RuntimeException("Unsupported file encryption.");
         }
 
-        entry.setChunkSize(reader.readInt());
+        entry.setBlockSize(reader.readInt());
 
         return entry;
     }
@@ -136,17 +133,17 @@ public class PakMetaReader {
     }
 
 
-    private List<PakCompressedBlock> readFileChunkDescriptors(RandomAccessFileReader reader) throws IOException {
-        List<PakCompressedBlock> chunks = new ArrayList<>();
-        int numChunks = reader.readInt();
+    private List<PakCompressedBlock> readFileBlockDescriptors(RandomAccessFileReader reader) throws IOException {
+        List<PakCompressedBlock> blocks = new ArrayList<>();
+        int numBlocks = reader.readInt();
 
-        for (int i = 0; i < numChunks; i++) {
+        for (int i = 0; i < numBlocks; i++) {
             long chunkOffsetStart = reader.readLong();
             long chunkOffsetEnd = reader.readLong();
-            chunks.add(new PakCompressedBlock(chunkOffsetStart, chunkOffsetEnd));
+            blocks.add(new PakCompressedBlock(chunkOffsetStart, chunkOffsetEnd));
         }
 
-        return chunks;
+        return blocks;
     }
 
 }

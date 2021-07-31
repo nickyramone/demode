@@ -1,5 +1,6 @@
 package net.dbd.demode.pak;
 
+import lombok.experimental.UtilityClass;
 import net.dbd.demode.pak.domain.*;
 import net.dbd.demode.util.io.RandomAccessFileWriter;
 import net.dbd.demode.util.lang.LittleEndianByteArrayOutputStream;
@@ -8,53 +9,50 @@ import org.apache.commons.codec.binary.Hex;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 /**
- * TODO: Finish reverse-engineering the index location relative to the compressed blocks for the case of compressed files.
- * TODO: use buffers for writing metadata
+ * Helper for reading pak file metadata.
  *
  * @author Nicky Ramone
  */
+@UtilityClass
 public class PakMetaWriter {
 
-    private static final byte[] SPACE_BETWEEN_INDEX_AND_PAK_INFO = new byte[PakConstants.BYTES_BETWEEN_INDEX_AND_PAK_INFO];
 
+    public void writeMetadata(PakFile pakFile) throws Exception {
+        File file = pakFile.getFile();
 
-    public void writeMetadata(Pak pak) throws Exception {
-        File file = pak.getFile();
-
+        // TODO: improve: use a buffered writer
         try (RandomAccessFileWriter raf = new RandomAccessFileWriter(file, RandomAccessFileWriter.Endianness.LITTLE_ENDIAN)) {
-            writeIndex(raf, pak);
-            raf.write(SPACE_BETWEEN_INDEX_AND_PAK_INFO);
-            writePakInfo(raf, pak);
+            writeIndex(raf, pakFile.getPak());
+            raf.writeNullBytes(PakConstants.BYTES_BETWEEN_INDEX_AND_PAK_INFO);
+            writePakInfo(raf, pakFile.getPak());
         }
 
     }
 
 
     public void writeIndex(RandomAccessFileWriter raf, Pak pak) throws IOException, DecoderException {
-        PakInfo pakInfo = pak.getPakInfo();
-        PakIndex index = pak.getPakIndex();
+        PakInfo pakInfo = pak.getInfo();
+        PakIndex index = pak.getIndex();
 
         raf.seek(pakInfo.getIndexOffset());
-        byte[] data = serialize(index);
+        raf.truncate();
+        byte[] data = serializeIndex(index);
         raf.write(data);
+
+        // TODO: improve: we can calculate the sha1 on the fly
         byte[] sha1 = calculateSha1Hash(data);
-        pak.getPakInfo().setIndexHash(Hex.encodeHexString(sha1));
 
-//        raf.seek(pak.getFooter().getTocOffset());
-//        raf.writeLong(index.getMountPath().toString().length());
-//        raf.writeAsciiString(index.getMountPath().toString().replace('\\', '/'));
-//        raf.writeByte(0);
-//        raf.writeInt(index.getEntries().size());
-//        raf.writeLong(index.getTotalEntriesSize());
-
+        pak.getInfo().setIndexSize(data.length);
+        pak.getInfo().setIndexHash(Hex.encodeHexString(sha1));
     }
 
-    private byte[] serialize(PakIndex index) throws DecoderException {
+    private byte[] serializeIndex(PakIndex index) throws DecoderException {
         String mountPoint = index.getMountPoint().toString().replace('\\', '/') + '/';
 
         var byteStream = new LittleEndianByteArrayOutputStream();
@@ -69,26 +67,29 @@ public class PakMetaWriter {
 
     private void serializeIndexEntries(List<PakEntry> entries, LittleEndianByteArrayOutputStream byteStream) throws DecoderException {
 
-
         for (PakEntry entry : entries) {
-            byteStream.writeInt(entry.getFilename().length() + 1);
-            byteStream.writeAsciiString(entry.getFilename());
+            String filePath = toPakPath(entry.getFilePath());
+            byteStream.writeInt(filePath.length() + 1);
+            byteStream.writeAsciiString(filePath);
             byteStream.write(0);
             byteStream.writeLong(entry.getOffset());
             byteStream.writeLong(entry.getCompressedSize());
             byteStream.writeLong(entry.getSize());
             byteStream.writeInt(entry.isCompressed() ? 1 : 0);
             byteStream.writeHexString(entry.getHash());
-            byteStream.write(entry.isEncrypted() ? 1 : 0);
-            byteStream.writeInt(entry.getChunkSize());
 
             if (entry.isCompressed()) {
                 serializeIndexEntryCompressedBlocks(entry.getBlocks(), byteStream);
             }
+
+            byteStream.write(entry.isEncrypted() ? 1 : 0);
+            byteStream.writeInt(entry.getBlockSize());
         }
     }
 
     private void serializeIndexEntryCompressedBlocks(List<PakCompressedBlock> blocks, LittleEndianByteArrayOutputStream byteStream) {
+        byteStream.writeInt(blocks.size());
+
         for (PakCompressedBlock block : blocks) {
             byteStream.writeLong(block.getOffsetStart());
             byteStream.writeLong(block.getOffsetEnd());
@@ -96,14 +97,20 @@ public class PakMetaWriter {
     }
 
 
-    public void writePakInfo(RandomAccessFileWriter raf, Pak pak) throws IOException, NoSuchAlgorithmException {
+    public void writePakInfo(RandomAccessFileWriter raf, Pak pak) throws IOException {
+        long currentPos = raf.position();
+        raf.truncate();
+        raf.writeNullBytes(PakConstants.PAK_INFO_OFFSET_FROM_EOF * -1);
+        raf.seek(currentPos);
 
-        PakInfo pakInfo = pak.getPakInfo();
+        PakInfo pakInfo = pak.getInfo();
         raf.writeInt(PakConstants.PAK_MAGIC);
         raf.writeInt(pakInfo.getVersion());
         raf.writeLong(pakInfo.getIndexOffset());
         raf.writeLong(pakInfo.getIndexSize());
         raf.writeHexString(pakInfo.getIndexHash());
+        raf.writeByte(0);
+        raf.writeAsciiString("Zlib");
     }
 
 
@@ -116,5 +123,8 @@ public class PakMetaWriter {
         }
     }
 
+    private String toPakPath(Path path) {
+        return path.toString().replace('\\', '/');
+    }
 
 }

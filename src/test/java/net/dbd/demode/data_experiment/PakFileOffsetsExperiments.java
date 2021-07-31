@@ -1,43 +1,41 @@
-package net.dbd.demode.manual;
+package net.dbd.demode.data_experiment;
 
 import net.dbd.demode.Factory;
-import net.dbd.demode.pak.domain.Pak;
+import net.dbd.demode.pak.PakFile;
 import net.dbd.demode.pak.domain.PakConstants;
 import net.dbd.demode.pak.domain.PakEntry;
 import net.dbd.demode.pak.domain.PakInfo;
-import net.dbd.demode.service.DbdUnpacker;
-import org.junit.Before;
+import net.dbd.demode.service.DbdPakManager;
 import org.junit.Test;
 
+import java.util.Collection;
 import java.util.List;
 
 import static java.util.stream.Collectors.toList;
 
-public class PakFilesOffsetsManualTest {
+/**
+ * @author Nicky Ramone
+ */
+public class PakFileOffsetsExperiments {
 
-    private DbdUnpacker dbdUnpacker;
-
-    @Before
-    public void setUp() throws Exception {
-        dbdUnpacker = new DbdUnpacker(Factory.pakMetaReader(), Defaults.DBD_DIR);
-    }
+    private DbdPakManager dbdPakManager = Factory.newDbdPakManager(Defaults.DBD_HOME);
 
 
     @Test
-    public void showPakFooterLocation() throws Exception {
-        dbdUnpacker.getPaks().stream()
-                .peek(this::printOffsetsInfo)
-                .collect(toList());
+    public void showOffsetsBetweenPakInfoAndIndex() {
+
+        dbdPakManager.getPakFiles()
+                .forEach(this::printOffsetsInfo);
     }
 
 
-    private void printOffsetsInfo(Pak pak) {
+    private void printOffsetsInfo(PakFile pakFile) {
 
         long minOffset = Long.MAX_VALUE;
         long minOffsetEntryIndex = -1;
         long maxOffset = -1;
         long maxOffsetEntryIndex = -1;
-        List<PakEntry> entries = pak.getPakIndex().getEntries();
+        List<PakEntry> entries = pakFile.getIndex().getEntries();
         PakEntry maxEntry = null;
 
         for (int i = 0, n = entries.size(); i < n; i++) {
@@ -55,22 +53,54 @@ public class PakFilesOffsetsManualTest {
             }
         }
 
-        PakInfo pakInfo = pak.getPakInfo();
+        PakInfo pakInfo = pakFile.getInfo();
         long indexOffset = pakInfo.getIndexOffset();
         long indexSize = pakInfo.getIndexSize();
-        long pakFileSize = pak.getFile().length();
+        long pakFileSize = pakFile.getFile().length();
 
         System.out.printf("%s -->\n"
                         + "                                    pak size: %d; index offset: %d; index size: %d;\n"
                         + "                                    total entries: %d; min entry offset (entry#%d): %d; max entry offset (entry#%d): %d\n"
                         + "                                    max entry offset + size: %d; diff with index offset: %d; chunked?: %b\n"
                         + "                                    index offset+size: %d; footer (pak info): %d; diff: %d\n",
-                pak.getFile().getName(), pakFileSize, indexOffset, indexSize,
-                pak.getPakIndex().getEntries().size(), minOffsetEntryIndex, minOffset, maxOffsetEntryIndex, maxOffset,
+                pakFile.getFile().getName(), pakFileSize, indexOffset, indexSize,
+                pakFile.getIndex().getEntries().size(), minOffsetEntryIndex, minOffset, maxOffsetEntryIndex, maxOffset,
                 maxOffset + maxEntry.getSize(), indexOffset - (maxOffset + maxEntry.getCompressedSize()), maxEntry.isCompressed(),
                 indexOffset + indexSize, pakFileSize + PakConstants.PAK_INFO_OFFSET_FROM_EOF,
                 (pakFileSize + PakConstants.PAK_INFO_OFFSET_FROM_EOF) - (indexOffset + indexSize));
     }
 
+
+    /**
+     * Conclusion: Blocks for a single file are all contiguous.
+     */
+    @Test
+    public void showBlockSeparationOffsets() {
+        var blockLists = dbdPakManager.getPakFiles().stream()
+                .map(pakFile -> pakFile.getIndex().getEntries())
+                .flatMap(Collection::stream)
+                .filter(PakEntry::isCompressed)
+                .map(PakEntry::getBlocks)
+                .collect(toList());
+
+        Long lastBlockEndOffset = null;
+
+        for (var blockList : blockLists) {
+
+            for (var block : blockList) {
+
+                if (lastBlockEndOffset != null) {
+                    var delta = block.getOffsetStart() - lastBlockEndOffset;
+
+                    if (delta != 0) {
+                        System.out.println("Block separation: " + delta);
+                    }
+                }
+                lastBlockEndOffset = block.getOffsetEnd();
+            }
+
+            lastBlockEndOffset = null;
+        }
+    }
 
 }

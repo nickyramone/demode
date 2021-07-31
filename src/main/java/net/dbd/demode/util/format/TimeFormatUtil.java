@@ -1,4 +1,4 @@
-package net.dbd.demode.util;
+package net.dbd.demode.util.format;
 
 import lombok.experimental.UtilityClass;
 

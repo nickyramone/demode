@@ -20,7 +20,7 @@ public class MainButtonPanel extends JPanel {
     }
 
     public enum Option {
-        HOME, UNPACK
+        HOME, UNPACK, CLEAN, INFO
     }
 
     private static final Color BUTTON_BAR_BG_COLOR = new Color(105, 105, 105);
@@ -82,6 +82,8 @@ public class MainButtonPanel extends JPanel {
     private Option selectedOption = Option.HOME;
     private MainButton homeButton;
     private MainButton unpackButton;
+    private MainButton cleanButton;
+    private MainButton infoButton;
 
 
     public MainButtonPanel() {
@@ -93,12 +95,18 @@ public class MainButtonPanel extends JPanel {
 
         homeButton = createHomeButton();
         unpackButton = createUnpackButton();
+        cleanButton = createCleanButton();
+        infoButton = createInfoButton();
         homeButton.select();
 
         add(Box.createRigidArea(new Dimension(0, 2)));
         add(homeButton);
         add(createSeparator());
         add(unpackButton);
+        add(createSeparator());
+        add(cleanButton);
+        add(createSeparator());
+        add(infoButton);
         add(createSeparator());
     }
 
@@ -118,6 +126,14 @@ public class MainButtonPanel extends JPanel {
 
     private MainButton createUnpackButton() {
         return createMainOptionButton(Option.UNPACK, ResourceFactory.Icon.UNPACK, "Unpack DBD");
+    }
+
+    private MainButton createCleanButton() {
+        return createMainOptionButton(Option.CLEAN, ResourceFactory.Icon.BROOM, "Clean files");
+    }
+
+    private MainButton createInfoButton() {
+        return createMainOptionButton(Option.INFO, ResourceFactory.Icon.INFO, "App info");
     }
 
 
@@ -156,6 +172,8 @@ public class MainButtonPanel extends JPanel {
     private void unselectAll() {
         homeButton.unhighlight();
         unpackButton.unhighlight();
+        cleanButton.unhighlight();
+        infoButton.unhighlight();
     }
 
 

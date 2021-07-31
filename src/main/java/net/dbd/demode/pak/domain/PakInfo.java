@@ -3,7 +3,7 @@ package net.dbd.demode.pak.domain;
 import lombok.Data;
 
 /**
- * Header (it's actually the footer) of a pak file.
+ * Entry point of a pak file.
  *
  * @author Nicky Ramone
  */

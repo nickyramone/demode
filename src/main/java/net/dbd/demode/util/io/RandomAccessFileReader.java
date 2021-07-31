@@ -19,7 +19,7 @@ import static net.dbd.demode.util.ByteUtil.*;
  */
 public class RandomAccessFileReader implements AutoCloseable {
 
-    private static final int BUFFER_SIZE = 16 * 1024; // TODO: try with 8192;
+    private static final int BUFFER_SIZE = 8192;
 
     private final byte[] buffer = new byte[BUFFER_SIZE];
     private final boolean littleEndian;
@@ -36,10 +36,6 @@ public class RandomAccessFileReader implements AutoCloseable {
     }
 
 
-    /**
-     * @param file       The file to read
-     * @param endianness Endianness of the file to read
-     */
     public RandomAccessFileReader(File file, boolean littleEndian) throws IOException {
         this.file = new RandomAccessReadBufferedFile(file);
         this.fileSize = this.file.length();

@@ -36,6 +36,11 @@ public class NameValuePartialIntField extends JPanel {
         add(this.totalValueLabel);
     }
 
+    public void reset() {
+        setCurrentValue(0);
+        setTotalValue(0);
+    }
+
     public void incrementCurrentValue() {
         incrementCurrentValue(1);
     }

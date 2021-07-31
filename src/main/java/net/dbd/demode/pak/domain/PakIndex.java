@@ -14,13 +14,10 @@ import java.util.List;
 @Data
 public class PakIndex {
     private Path mountPoint;
-    private int numEntries;
-    private long totalEntriesSize;
     private List<PakEntry> entries = new ArrayList<>();
 
     public void addEntry(PakEntry entry) {
         entries.add(entry);
-        totalEntriesSize += entry.getSize();
     }
 
 }

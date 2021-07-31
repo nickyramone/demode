@@ -39,6 +39,7 @@ public class Boot {
 
     private static void init() throws Exception {
         log.info("Initializing...");
+        Factory.appProperties();
         initUi();
     }
 
@@ -49,10 +50,10 @@ public class Boot {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 UIManager.put("ProgressBar.foreground", new Color(0x6f, 0xcc, 0x9f));
                 UIManager.put("ProgressBar.selectionForeground", Color.WHITE);
+
             } catch (Exception e) {
                 log.error("Failed to initialize UI.", e);
                 exitApplication(1);
-                System.out.println("error!");
             }
 
             ui = Factory.mainWindow();

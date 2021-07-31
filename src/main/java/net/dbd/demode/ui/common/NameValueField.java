@@ -23,8 +23,8 @@ public class NameValueField extends JPanel {
         add(rightLabel);
     }
 
-    public void setValue(int value) {
-        rightLabel.setText(String.valueOf(value));
+    public void setValue(String value) {
+        rightLabel.setText(value);
     }
 
 

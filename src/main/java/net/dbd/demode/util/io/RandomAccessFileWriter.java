@@ -1,6 +1,8 @@
 package net.dbd.demode.util.io;
 
 import net.dbd.demode.util.ByteUtil;
+import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Hex;
 
 import java.io.File;
 import java.io.IOException;
@@ -29,6 +31,10 @@ public class RandomAccessFileWriter implements AutoCloseable {
     }
 
 
+    public void skip(int numBytes) throws IOException {
+        file.skipBytes(numBytes);
+    }
+
     public void writeByte(int b) throws IOException {
         file.write(b);
     }
@@ -45,20 +51,33 @@ public class RandomAccessFileWriter implements AutoCloseable {
         file.writeLong(longToWrite);
     }
 
-    public void writeHexString(String hex) {
-
-//        hex.get
-    }
-
     public void writeAsciiString(String string) throws IOException {
         byte[] bytes = string.getBytes(StandardCharsets.US_ASCII);
         write(bytes);
     }
 
     public void write(byte[] bytes) throws IOException {
-        file.write(bytes);
+        write(bytes, bytes.length);
     }
 
+    public void write(byte[] bytes, int len) throws IOException {
+        file.write(bytes, 0, len);
+    }
+
+    public void writeNullBytes(int numBytes) throws IOException {
+        for (int i = 0; i < numBytes; i++) {
+            writeByte(0);
+        }
+    }
+
+    public void writeHexString(String hexString) throws IOException {
+        try {
+            write(Hex.decodeHex(hexString));
+        } catch (DecoderException e) {
+            throw new RuntimeException("Invalid hex string.", e);
+        }
+
+    }
 
     public void seek(long position) throws IOException {
         file.seek(position);
@@ -70,6 +89,11 @@ public class RandomAccessFileWriter implements AutoCloseable {
 
     public long size() throws IOException {
         return file.length();
+    }
+
+
+    public void truncate() throws IOException {
+        file.setLength(file.getFilePointer());
     }
 
 

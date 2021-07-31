@@ -1,21 +1,24 @@
 package net.dbd.demode.pak;
 
-import net.dbd.demode.pak.domain.Pak;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import net.dbd.demode.pak.domain.PakCompressedBlock;
 import net.dbd.demode.pak.domain.PakEntry;
 import net.dbd.demode.pak.domain.PakIndex;
 import net.dbd.demode.util.event.EventListener;
 import net.dbd.demode.util.event.EventSupport;
+import net.dbd.demode.util.lang.OperationAbortedException;
 
 import java.io.*;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
 import static java.lang.Math.min;
 
 /**
- * Non thread-safe.
+ * TODO: Consider removing or having it being a helper to @{@link PakFile}.
  *
  * @author Nicky Ramone
  */
@@ -28,8 +31,17 @@ public class PakExtractor {
         ABORTED
     }
 
-    private static final int DEFAULT_BUFFER_SIZE = 8192;
-    private static final int ZLIB_BUFFER_SIZE = 65536;
+    @RequiredArgsConstructor
+    @Getter
+    public static final class ExtractedFileInfo {
+        final Path relativeFilePath;
+        final File file;
+        final String hash;
+    }
+
+    private static final int KiB = 1024;
+    private static final int DEFAULT_BUFFER_SIZE = 8 * KiB;
+    private static final int ZLIB_BUFFER_SIZE = 64 * KiB;
 
     private final byte[] zlibBuffer = new byte[ZLIB_BUFFER_SIZE];
     private final byte[] buffer = new byte[DEFAULT_BUFFER_SIZE];
@@ -38,53 +50,59 @@ public class PakExtractor {
     private boolean abort;
 
 
-    public boolean extract(Pak pak, Path outputPath) throws IOException, DataFormatException {
+    public void extract(PakFile pakFile, List<Path> includedFilePaths, Path outputPath)
+            throws IOException, DataFormatException, OperationAbortedException {
         abort = false;
 
-        try (RandomAccessFile raf = new RandomAccessFile(pak.getFile(), "r")) {
-            PakIndex pakIndex = pak.getPakIndex();
-            Path mountPath = outputPath.resolve(pakIndex.getMountPoint());
+        try (RandomAccessFile raf = new RandomAccessFile(pakFile.getFile(), "r")) {
+            PakIndex pakIndex = pakFile.getIndex();
+            Path mountPoint = pakIndex.getMountPoint();
 
-            for (PakEntry tocEntry : pakIndex.getEntries()) {
+            for (Path includedFilePath : includedFilePaths) {
                 if (abort) {
-                    return false;
+                    throw new OperationAbortedException();
                 }
 
-                File extractedFile = extractSingleFile(tocEntry, mountPath, raf);
-                eventSupport.fireEvent(EventType.FILE_EXTRACTED, extractedFile);
-                eventSupport.fireEvent(EventType.BYTES_EXTRACTED, tocEntry.getSize());
+                PakEntry pakEntry = pakFile.getEntry(includedFilePath);
+                extractSingleFile(pakEntry, outputPath, mountPoint, raf);
             }
         }
-        eventSupport.fireEvent(EventType.PAK_EXTRACTED, pak);
 
-        return true;
+        eventSupport.fireEvent(EventType.PAK_EXTRACTED, pakFile);
     }
 
 
-    private File extractSingleFile(PakEntry tocEntry, Path outputPath, RandomAccessFile raf)
-            throws IOException, DataFormatException {
+    private void extractSingleFile(PakEntry indexEntry, Path outputPath, Path mountPoint, RandomAccessFile raf)
+            throws IOException, DataFormatException, OperationAbortedException {
 
-        File outputFile = outputPath.resolve(tocEntry.getFilename()).normalize().toFile();
+        Path filePath = mountPoint.resolve(indexEntry.getFilePath()).normalize();
+        File outputFile = outputPath.resolve(filePath).normalize().toFile();
         outputFile.getParentFile().mkdirs();
 
         try (var outStream = new FileOutputStream(outputFile)) {
 
-            if (tocEntry.getBlocks().isEmpty()) {
-                raf.seek(tocEntry.getOffset());
-                copy(raf, (int) tocEntry.getSize(), outStream);
+            if (indexEntry.getBlocks().isEmpty()) {
+                raf.seek(indexEntry.getOffset());
+                copy(raf, (int) indexEntry.getSize(), outStream);
             } else {
-                unpackSplitFile(tocEntry, raf, outStream);
+                unpackSplitFile(indexEntry, raf, outStream);
             }
         }
 
-        return outputFile;
+        ExtractedFileInfo extractedFileInfo = new ExtractedFileInfo(filePath, outputFile, indexEntry.getHash());
+        eventSupport.fireEvent(EventType.FILE_EXTRACTED, extractedFileInfo);
+        eventSupport.fireEvent(EventType.BYTES_EXTRACTED, indexEntry.getSize());
     }
 
 
-    public void copy(RandomAccessFile raf, int length, OutputStream outStream) throws IOException {
+    private void copy(RandomAccessFile raf, int length, OutputStream outStream) throws IOException, OperationAbortedException {
         int totalRead = 0;
 
         do {
+            if (abort) {
+                throw new OperationAbortedException();
+            }
+
             int numBytesToRead = min(length - totalRead, DEFAULT_BUFFER_SIZE);
             raf.read(buffer, 0, numBytesToRead);
             totalRead += numBytesToRead;
@@ -100,20 +118,23 @@ public class PakExtractor {
      * This is ok, though, since so far we haven't found any chunk bigger than our buffer size.
      */
     private void unpackSplitFile(PakEntry entry, RandomAccessFile raf, OutputStream outStream)
-            throws IOException, DataFormatException {
+            throws IOException, DataFormatException, OperationAbortedException {
 
         long baseOffset = entry.getOffset();
 
-        for (PakCompressedBlock chunk : entry.getBlocks()) {
-            int chunkSize = chunk.size();
+        for (PakCompressedBlock block : entry.getBlocks()) {
+            if (abort) {
+                throw new OperationAbortedException();
+            }
+            int blockSize = block.size();
 
-            if (chunkSize > ZLIB_BUFFER_SIZE) {
-                throw new RuntimeException(String.format("File '%s' chunk is too big.", entry.getFilename()));
+            if (blockSize > ZLIB_BUFFER_SIZE) {
+                throw new RuntimeException(String.format("File '%s' chunk is too big.", entry.getFilePath()));
             }
 
-            raf.seek(baseOffset + chunk.getOffsetStart());
-            raf.read(zlibBuffer, 0, chunkSize);
-            decompressWithZlib(zlibBuffer, chunkSize, outStream);
+            raf.seek(baseOffset + block.getOffsetStart());
+            raf.read(zlibBuffer, 0, blockSize);
+            decompressWithZlib(zlibBuffer, blockSize, outStream);
         }
     }
 

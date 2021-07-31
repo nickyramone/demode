@@ -1,44 +1,33 @@
 package net.dbd.demode.service;
 
-import lombok.*;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.pak.ExtractionStats;
 import net.dbd.demode.pak.PakExtractor;
-import net.dbd.demode.pak.PakMetaReader;
-import net.dbd.demode.pak.domain.Pak;
+import net.dbd.demode.service.DbdPakManager.PakSelectionMonitor;
 import net.dbd.demode.util.event.EventListener;
 import net.dbd.demode.util.event.EventSupport;
-import net.dbd.demode.util.lang.Pair;
+import net.dbd.demode.util.lang.OperationAbortedException;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.UserDefinedFileAttributeView;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Stream;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 import java.util.zip.DataFormatException;
-
-import static java.util.stream.Collectors.toList;
 
 /**
  * @author Nicky Ramone
  */
 @RequiredArgsConstructor
+@Slf4j
 public class DbdUnpacker {
 
-    private static final String PAK_FILE_REGEX = "pakchunk(\\d+)-WindowsNoEditor.pak";
-    private static final Pattern PAK_FILE_PATTERN = Pattern.compile(PAK_FILE_REGEX);
-    private static final String PAKS_RELATIVE_PATH = "DeadByDaylight/Content/Paks";
-    private static final String FILE_ATTR__ORIGINAL = "user.demode.original";
-
-
     public enum EventType {
+        FILE_SELECT__BEGIN,
+        FILE_SELECT__FILE_PROCESSED,
+        FILE_SELECT__FINISH,
+
         UNPACK_BEGIN,
         PAK_EXTRACT_BEGIN,
         FILE_EXTRACTED,
@@ -48,215 +37,199 @@ public class DbdUnpacker {
         ABORTED
     }
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static final class PaksSelection {
-        private int numFiles;
-        private long totalSize;
-        private List<Pak> paks = new ArrayList<>();
+    private static final long MiB = 1024 * 1024;
+    private static final long GiB = 1024 * MiB;
+    private static final long MIN_FREE_DISK_SPACE = 5 * GiB;
 
-        public void addPaks(List<Pak> paks) {
-            for (Pak pak : paks) {
-                addPak(pak);
+    private final FileMetadataManager fileMetadataManager;
+    private final DbdPathService dbdPathService;
+    private final DbdPakManager dbdPakManager;
+    private final EventSupport eventSupport = new EventSupport();
+
+
+    public static final class UnpackMonitor {
+        private final EventSupport eventSupport = new EventSupport();
+        @Getter
+        private final ExtractionStats currentPakStats = new ExtractionStats();
+        @Getter
+        private final ExtractionStats totalStats = new ExtractionStats();
+        @Getter
+        private int currentPak;
+        @Getter
+        private int totalPaks;
+        private PakSelectionMonitor pakSelectionMonitor;
+        private PakExtractor pakExtractor;
+        private Supplier<CompletableFuture<Void>> startAction;
+
+
+        public UnpackMonitor() {
+            pakSelectionMonitor = new PakSelectionMonitor();
+            pakSelectionMonitor.registerListener(PakSelectionMonitor.EventType.BEGIN,
+                    e -> fireEvent(EventType.FILE_SELECT__BEGIN, e.getValue()));
+            pakSelectionMonitor.registerListener(PakSelectionMonitor.EventType.FILE_PROCESSED,
+                    e -> fireEvent(EventType.FILE_SELECT__FILE_PROCESSED));
+            pakSelectionMonitor.registerListener(PakSelectionMonitor.EventType.ABORTED,
+                    e -> fireEvent(EventType.ABORTED));
+        }
+
+        private void setStartAction(Supplier<CompletableFuture<Void>> startAction) {
+            this.startAction = startAction;
+        }
+
+        public CompletableFuture<Void> start() {
+            return startAction.get();
+        }
+
+        public void abort() {
+            if (pakSelectionMonitor != null) {
+                pakSelectionMonitor.abort();
+                return;
+            }
+            if (pakExtractor != null) {
+                pakExtractor.abort();
             }
         }
 
-        public void addPak(Pak pak) {
-            this.paks.add(pak);
-            numFiles += pak.getPakIndex().getNumEntries();
-            totalSize += pak.getPakIndex().getTotalEntriesSize();
+        public UnpackMonitor registerListener(EventType eventType, EventListener eventListener) {
+            eventSupport.registerListener(eventType, eventListener);
+            return this;
         }
 
-        public void removePak(int index) {
-            Pak removed = paks.remove(index);
-            numFiles -= removed.getPakIndex().getNumEntries();
-            totalSize -= removed.getPakIndex().getTotalEntriesSize();
+        public void fireEvent(Object eventType) {
+            eventSupport.fireEvent(eventType);
+        }
+
+        public void fireEvent(Object eventType, Object eventValue) {
+            eventSupport.fireEvent(eventType, eventValue);
         }
     }
 
 
-    @Getter
-    public class UnpackStatus {
+    public UnpackMonitor unpackAll(Path outputPath) {
+        UnpackMonitor monitor = new UnpackMonitor();
+        monitor.setStartAction(() -> unpackAll(outputPath, monitor));
 
-        @Setter
-        private int currentPak;
-        @Setter
-        private int totalPaks;
-        @Setter
-        private PakExtractor pakExtractor;
+        return monitor;
+    }
 
-        private final ExtractionStats currentPakStats = new ExtractionStats();
-        private final ExtractionStats totalStats = new ExtractionStats();
-        private final EventSupport eventSupport = new EventSupport();
+    private CompletableFuture<Void> unpackAll(Path outputPath, UnpackMonitor monitor) {
+        return CompletableFuture.runAsync(() -> {
+            monitor.pakSelectionMonitor = null;
+            var selection = dbdPakManager.selectAllFiles();
+            try {
+                unpackSelection(selection, outputPath, monitor);
+            } catch (DataFormatException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
 
 
-        public void abort() {
-            pakExtractor.abort();
+    public UnpackMonitor unpackMissingAndUnverified(Path outputPath) {
+        UnpackMonitor monitor = new UnpackMonitor();
+        monitor.setStartAction(() -> unpackMissingAndUnverified(outputPath, monitor));
+
+        return monitor;
+    }
+
+    private CompletableFuture<Void> unpackMissingAndUnverified(Path outputPath, UnpackMonitor unpackMonitor) {
+
+        return dbdPakManager.selectMissingAndUnverified(unpackMonitor.pakSelectionMonitor).thenAccept(selection -> {
+            unpackMonitor.pakSelectionMonitor = null;
+            unpackMonitor.fireEvent(EventType.FILE_SELECT__FINISH, selection);
+            try {
+                unpackSelection(selection, outputPath, unpackMonitor);
+            } catch (DataFormatException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private void unpackSelection(MultiPakSelection selection, Path outputPath, UnpackMonitor unpackMonitor)
+            throws DataFormatException, IOException {
+
+        if (selection.getTotalFiles() == 0) {
+            return;
         }
 
-    }
+        verifyFreeDiskSpace(outputPath, selection.getTotalBytes() + MIN_FREE_DISK_SPACE);
 
+        unpackMonitor.totalPaks = selection.getSinglePakSelections().size();
+        unpackMonitor.totalStats.start(selection.getTotalFiles(), selection.getTotalBytes());
+        unpackMonitor.fireEvent(EventType.UNPACK_BEGIN);
 
-    private final PakMetaReader pakMetaReader;
-    //    private final PakExtractor pakExtractor;
-    private final EventSupport eventSupport = new EventSupport();
-    private final Path paksPath;
+        for (SinglePakSelection singlePakSelection : selection) {
 
-    @Getter
-    private final List<Pak> paks;
-
-    private boolean aborted;
-
-
-    public DbdUnpacker(PakMetaReader pakMetaReader, String dbdDirectory)
-            throws IOException {
-
-        this.pakMetaReader = pakMetaReader;
-        this.paksPath = Path.of(dbdDirectory, PAKS_RELATIVE_PATH);
-        this.paks = parsePakFiles(paksPath);
-    }
-
-
-    public PaksSelection selectAllPaks() {
-        PaksSelection selection = new PaksSelection();
-        selection.addPaks(paks);
-
-        return selection;
-    }
-
-    public PaksSelection selectPaks(int... indexes) {
-        PaksSelection selection = new PaksSelection();
-
-        for (int i = 0; i < indexes.length; i++) {
-            selection.addPak(paks.get(indexes[i]));
-        }
-
-
-        return selection;
-    }
-
-
-    public List<String> listPakFiles(Path paksPath) throws IOException {
-
-        return Stream.of(Optional.ofNullable(paksPath.toFile().listFiles()).orElse(new File[0]))
-                .map(File::getName)
-                .filter(s -> s.matches(PAK_FILE_REGEX))
-                .map(this::parsePakFilename)
-                .sorted(Comparator.comparingInt(Pair::left))
-                .map(Pair::right)
-                .collect(toList());
-    }
-
-    private Pair<Integer, String> parsePakFilename(String filename) {
-        Matcher matcher = PAK_FILE_PATTERN.matcher(filename);
-        matcher.find();
-
-        return new Pair<>(Integer.parseInt(matcher.group(1)), filename);
-    }
-
-    private List<Pak> parsePakFiles(Path paksBasePath) throws IOException {
-
-        return listPakFiles(this.paksPath).stream()
-                .map(filename -> paksBasePath.resolve(filename).normalize().toFile())
-//                .map(pakPath -> pakParser.parse(pakPath, Path.of(PAKS_RELATIVE_PATH)))
-                .map(pakPath -> pakMetaReader.parse(pakPath))
-                .collect(toList());
-    }
-
-
-    public void unpack(PaksSelection selection, String outputPath) throws DataFormatException, IOException {
-        UnpackStatus unpackStatus = new UnpackStatus();
-        unpackStatus.setTotalPaks(selection.getPaks().size());
-        unpackStatus.getTotalStats().start(selection.numFiles, selection.totalSize);
-        fireEvent(EventType.UNPACK_BEGIN, unpackStatus);
-
-        for (Pak pak : selection.getPaks()) {
-
-            if (!unpackPak(pak, Path.of(outputPath), unpackStatus)) {
+            if (!unpackPak(singlePakSelection, outputPath.resolve(dbdPathService.getPaksRelativePath()), unpackMonitor)) {
                 return;
             }
         }
 
-        unpackStatus.getTotalStats().stop();
-        fireEvent(EventType.UNPACK_FINISH, unpackStatus);
+        unpackMonitor.totalStats.stop();
+        unpackMonitor.fireEvent(EventType.UNPACK_FINISH);
     }
 
+    private boolean unpackPak(SinglePakSelection pakSelection, Path outputPath, UnpackMonitor unpackMonitor)
+            throws DataFormatException, IOException {
 
-    private boolean unpackPak(Pak pak, Path outputPath, UnpackStatus unpackStatus) throws DataFormatException, IOException {
-        ExtractionStats currentPakStats = unpackStatus.getCurrentPakStats();
-        unpackStatus.currentPak++;
-        currentPakStats.start(pak.getPakIndex().getEntries().size(), pak.getPakIndex().getTotalEntriesSize());
-        fireEvent(EventType.PAK_EXTRACT_BEGIN, pak);
+        unpackMonitor.currentPak++;
+        unpackMonitor.currentPakStats.start(pakSelection.getTotalFiles(), pakSelection.getTotalBytes());
+        unpackMonitor.fireEvent(EventType.PAK_EXTRACT_BEGIN, pakSelection.getPakFile());
 
         PakExtractor pakExtractor = new PakExtractor();
-        pakExtractor.registerListener(PakExtractor.EventType.FILE_EXTRACTED, e -> handleFileExtractedEvent(unpackStatus, (File) e.getValue()));
-        pakExtractor.registerListener(PakExtractor.EventType.BYTES_EXTRACTED, e -> handleBytesExtractedEvent(unpackStatus, (long) e.getValue()));
-        pakExtractor.registerListener(PakExtractor.EventType.PAK_EXTRACTED, e -> handlePakExtractedEvent(unpackStatus));
-        pakExtractor.registerListener(PakExtractor.EventType.ABORTED, e -> handleExtractAbort());
-        unpackStatus.setPakExtractor(pakExtractor);
+        pakExtractor.registerListener(PakExtractor.EventType.FILE_EXTRACTED,
+                e -> handleFileExtractedEvent(unpackMonitor, (PakExtractor.ExtractedFileInfo) e.getValue()));
+        pakExtractor.registerListener(PakExtractor.EventType.BYTES_EXTRACTED,
+                e -> handleBytesExtractedEvent(unpackMonitor, (long) e.getValue()));
+        pakExtractor.registerListener(PakExtractor.EventType.PAK_EXTRACTED,
+                e -> handlePakExtractedEvent(unpackMonitor));
+        pakExtractor.registerListener(PakExtractor.EventType.ABORTED,
+                e -> handleExtractAbort());
+        unpackMonitor.pakExtractor = pakExtractor;
 
-
-        boolean finished = pakExtractor.extract(pak, outputPath);
-
-        if (!finished) {
-            unpackStatus.getCurrentPakStats().stop();
-            unpackStatus.getTotalStats().stop();
-            fireEvent(EventType.ABORTED);
+        try {
+            pakExtractor.extract(pakSelection.getPakFile(), pakSelection.getFilePaths(), outputPath);
+        } catch (OperationAbortedException e) {
+            unpackMonitor.currentPakStats.stop();
+            unpackMonitor.totalStats.stop();
+            unpackMonitor.fireEvent(EventType.ABORTED);
+            return false;
         }
 
-        return finished;
+        return true;
     }
 
 
-    public void abortUnpacking() {
-        aborted = true;
+    private void verifyFreeDiskSpace(Path targetPath, long sizeInBytes) {
+        if (targetPath.toFile().getFreeSpace() < sizeInBytes) {
+            throw new InsufficientDiskSpaceException(sizeInBytes);
+        }
     }
 
-
-    private void handleFileExtractedEvent(UnpackStatus unpackStatus, File file) {
-        unpackStatus.getCurrentPakStats().incrementFilesExtracted();
-        unpackStatus.getTotalStats().incrementFilesExtracted();
-        markFileAsOriginal(file);
-        fireEvent(EventType.FILE_EXTRACTED, unpackStatus);
+    private void handleFileExtractedEvent(UnpackMonitor unpackMonitor, PakExtractor.ExtractedFileInfo extractedFileInfo) {
+        unpackMonitor.currentPakStats.incrementFilesExtracted();
+        unpackMonitor.totalStats.incrementFilesExtracted();
+        fileMetadataManager.writeHash(extractedFileInfo.getFile().toPath(), extractedFileInfo.getHash());
+        unpackMonitor.fireEvent(EventType.FILE_EXTRACTED);
     }
 
-    private void handleBytesExtractedEvent(UnpackStatus unpackStatus, long bytes) {
-        unpackStatus.getCurrentPakStats().incrementBytesExtracted(bytes);
-        unpackStatus.getTotalStats().incrementBytesExtracted(bytes);
-        fireEvent(EventType.BYTES_EXTRACTED, unpackStatus);
+    private void handleBytesExtractedEvent(UnpackMonitor unpackMonitor, long bytes) {
+        unpackMonitor.currentPakStats.incrementBytesExtracted(bytes);
+        unpackMonitor.totalStats.incrementBytesExtracted(bytes);
+        unpackMonitor.fireEvent(EventType.BYTES_EXTRACTED);
     }
 
-    private void handlePakExtractedEvent(UnpackStatus unpackStatus) {
-        unpackStatus.getCurrentPakStats().stop();
-        fireEvent(EventType.PAK_EXTRACT_FINISH, unpackStatus.currentPakStats.elapsed());
+    private void handlePakExtractedEvent(UnpackMonitor unpackMonitor) {
+        unpackMonitor.currentPakStats.stop();
+        unpackMonitor.fireEvent(EventType.PAK_EXTRACT_FINISH, unpackMonitor.currentPakStats.elapsed());
     }
 
     private void handleExtractAbort() {
-        abortUnpacking();
         fireEvent(EventType.ABORTED);
-    }
-
-
-    private void markFileAsOriginal(File file) {
-        UserDefinedFileAttributeView attributeView = Files.getFileAttributeView(file.toPath(), UserDefinedFileAttributeView.class);
-        try {
-            attributeView.write(FILE_ATTR__ORIGINAL, ByteBuffer.allocate(0));
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to mark file as original: " + file.toPath());
-        }
-    }
-
-    public void registerListener(EventType eventType, EventListener eventListener) {
-        eventSupport.registerListener(eventType, eventListener);
     }
 
     private void fireEvent(EventType eventType) {
         eventSupport.fireEvent(eventType);
-    }
-
-    private void fireEvent(EventType eventType, Object eventValue) {
-        eventSupport.fireEvent(eventType, eventValue);
     }
 
 }
