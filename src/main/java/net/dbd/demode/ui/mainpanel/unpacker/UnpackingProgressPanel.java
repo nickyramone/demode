@@ -1,4 +1,4 @@
-package net.dbd.demode.ui.unpacker;
+package net.dbd.demode.ui.mainpanel.unpacker;
 
 import net.dbd.demode.pak.ExtractionStats;
 import net.dbd.demode.ui.common.NameValueElapsedField;

@@ -1,7 +1,8 @@
-package net.dbd.demode.ui;
+package net.dbd.demode.ui.mainpanel;
 
 import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.config.AppProperties;
+import net.dbd.demode.ui.ResourceFactory;
 import net.dbd.demode.ui.common.BackgroundPanel;
 
 import javax.swing.*;

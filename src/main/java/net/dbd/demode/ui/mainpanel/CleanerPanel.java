@@ -1,4 +1,4 @@
-package net.dbd.demode.ui;
+package net.dbd.demode.ui.mainpanel;
 
 import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.config.UserSettings;
@@ -125,18 +125,18 @@ public class CleanerPanel extends JPanel {
         startButton.setVisible(false);
         stopButton.setVisible(true);
         logPanel.clear();
-        String dbdHome = userSettings.getDbdHomePath();
+        Path dbdHome = Path.of(userSettings.getDbdHomePath());
 
-        if (!dbdPathService.isValidDbdHomePath(Path.of(dbdHome))) {
+        if (!dbdPathService.isValidDbdHomePath(dbdHome)) {
             logPanel.log("Invalid DBD home path. Cannot continue.");
             finishCleaning();
             return;
         }
 
-        monitor = fileCleaner.clean(Path.of(dbdHome));
+        monitor = fileCleaner.clean(dbdHome);
         monitor.registerListener(FileCleaner.EventType.FILE_SCANNED, e -> invokeLater(this::handleFileScannedEvent));
 
-        logPanel.log("Started cleaning.");
+        logPanel.log("Started cleaning on target path: " + dbdHome);
         monitor.start()
                 .thenRun(() -> {
                     logPanel.log("Cleaning finished.");
@@ -146,7 +146,7 @@ public class CleanerPanel extends JPanel {
                     Throwable cause = throwable.getCause();
 
                     if (cause instanceof OperationAbortedException) {
-                        log.error("Aborted");
+                        logPanel.log("Aborted");
                     }
                     else {
                         log.error("Unexpected error occurred while cleaning files.", cause);

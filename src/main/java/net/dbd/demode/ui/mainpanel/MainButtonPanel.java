@@ -1,5 +1,6 @@
-package net.dbd.demode.ui;
+package net.dbd.demode.ui.mainpanel;
 
+import net.dbd.demode.ui.ResourceFactory;
 import net.dbd.demode.ui.common.SwingEventSupport;
 import net.dbd.demode.util.event.EventListener;
 

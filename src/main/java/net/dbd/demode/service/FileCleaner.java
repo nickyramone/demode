@@ -8,8 +8,12 @@ import net.dbd.demode.util.lang.OperationAbortedException;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -50,9 +54,31 @@ public class FileCleaner {
         private void fireEvent(EventType eventType) {
             eventSupport.fireEvent(eventType);
         }
+    }
 
-        private void fireEvent(EventType eventType, Object eventValue) {
-            eventSupport.fireEvent(eventType, eventValue);
+
+    @RequiredArgsConstructor
+    private final class CleanerFileVisitor extends SimpleFileVisitor<Path> {
+
+        private final CleanerMonitor monitor;
+
+
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            if (attrs.isRegularFile()) {
+                deleteFileIfInstalledByDemode(file, monitor);
+            }
+
+            return super.visitFile(file, attrs);
+        }
+
+        @Override
+        public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            if (Objects.requireNonNull(dir.toFile().listFiles()).length == 0) {
+                Files.delete(dir);
+            }
+
+            return super.postVisitDirectory(dir, exc);
         }
     }
 
@@ -71,9 +97,7 @@ public class FileCleaner {
 
         return CompletableFuture.runAsync(() -> {
             try {
-                Files.walk(basePath)
-                        .filter(Files::isRegularFile)
-                        .forEach(filePath -> processFile(filePath, monitor));
+                Files.walkFileTree(basePath, new CleanerFileVisitor(monitor));
 
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -81,7 +105,7 @@ public class FileCleaner {
         });
     }
 
-    private void processFile(Path filePath, CleanerMonitor monitor) {
+    private void deleteFileIfInstalledByDemode(Path filePath, CleanerMonitor monitor) {
         if (monitor.abort) {
             throw new OperationAbortedException();
         }

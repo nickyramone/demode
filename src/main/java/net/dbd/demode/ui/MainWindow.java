@@ -2,7 +2,11 @@ package net.dbd.demode.ui;
 
 import net.dbd.demode.config.AppProperties;
 import net.dbd.demode.config.UserSettings;
-import net.dbd.demode.ui.unpacker.UnpackerPanel;
+import net.dbd.demode.ui.mainpanel.CleanerPanel;
+import net.dbd.demode.ui.mainpanel.HomePanel;
+import net.dbd.demode.ui.mainpanel.InfoPanel;
+import net.dbd.demode.ui.mainpanel.MainButtonPanel;
+import net.dbd.demode.ui.mainpanel.unpacker.UnpackerPanel;
 import net.dbd.demode.util.event.EventListener;
 import net.dbd.demode.util.event.EventSupport;
 

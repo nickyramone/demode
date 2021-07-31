@@ -1,8 +1,9 @@
-package net.dbd.demode.ui;
+package net.dbd.demode.ui.mainpanel;
 
 import net.dbd.demode.config.AppProperties;
 import net.dbd.demode.config.UserSettings;
 import net.dbd.demode.service.DbdPathService;
+import net.dbd.demode.ui.ResourceFactory;
 import net.dbd.demode.ui.common.UiHelper;
 
 import javax.swing.*;

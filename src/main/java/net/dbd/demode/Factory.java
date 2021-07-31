@@ -5,11 +5,11 @@ import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.config.AppProperties;
 import net.dbd.demode.config.UserSettings;
 import net.dbd.demode.service.*;
-import net.dbd.demode.ui.CleanerPanel;
-import net.dbd.demode.ui.HomePanel;
-import net.dbd.demode.ui.InfoPanel;
+import net.dbd.demode.ui.mainpanel.CleanerPanel;
+import net.dbd.demode.ui.mainpanel.HomePanel;
+import net.dbd.demode.ui.mainpanel.InfoPanel;
 import net.dbd.demode.ui.MainWindow;
-import net.dbd.demode.ui.unpacker.UnpackerPanel;
+import net.dbd.demode.ui.mainpanel.unpacker.UnpackerPanel;
 import net.dbd.demode.util.Gson;
 
 import java.nio.file.Path;

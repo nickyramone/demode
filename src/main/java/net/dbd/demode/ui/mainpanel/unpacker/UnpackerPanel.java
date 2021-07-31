@@ -1,4 +1,4 @@
-package net.dbd.demode.ui.unpacker;
+package net.dbd.demode.ui.mainpanel.unpacker;
 
 import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.Factory;
@@ -9,6 +9,7 @@ import net.dbd.demode.service.DbdUnpacker.EventType;
 import net.dbd.demode.service.DbdUnpacker.UnpackMonitor;
 import net.dbd.demode.ui.ResourceFactory;
 import net.dbd.demode.ui.common.LogPanel;
+import net.dbd.demode.ui.common.SimpleProgressPanel;
 import net.dbd.demode.ui.common.UiHelper;
 import net.dbd.demode.util.format.TimeFormatUtil;
 import net.dbd.demode.util.lang.OperationAbortedException;
@@ -74,7 +75,7 @@ public class UnpackerPanel extends JPanel {
     }
 
     private JPanel drawContentPanelBottom() {
-        simpleProgressPanel = new SimpleProgressPanel();
+        simpleProgressPanel = new SimpleProgressPanel("files:");
         simpleProgressPanel.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         simpleProgressPanel.setVisible(false);
 
@@ -163,21 +164,19 @@ public class UnpackerPanel extends JPanel {
 
 
     public void startUnpacking() {
-        dirInput.setEnabled(false);
         startButton.setVisible(false);
         fullExtractionCheckbox.setVisible(false);
         logPanel.clear();
 
         try {
-
-            String dbdHomePath = userSettings.getDbdHomePath();
-            DbdPakManager dbdPakManager = Factory.newDbdPakManager(Path.of(dbdHomePath));
+            Path dbdHomePath = Path.of(userSettings.getDbdHomePath());
+            DbdPakManager dbdPakManager = Factory.newDbdPakManager(dbdHomePath);
             DbdUnpacker unpacker = Factory.newDbdUnpacker(dbdPakManager);
 
             if (fullExtractionCheckbox.isSelected()) {
-                unpackMonitor = unpacker.unpackAll(Path.of(dbdHomePath));
+                unpackMonitor = unpacker.unpackAll(dbdHomePath);
             } else {
-                unpackMonitor = unpacker.unpackMissingAndUnverified(Path.of(dbdHomePath));
+                unpackMonitor = unpacker.unpackMissingAndUnverified(dbdHomePath);
             }
 
             unpackMonitor
@@ -192,6 +191,7 @@ public class UnpackerPanel extends JPanel {
                     .registerListener(EventType.UNPACK_FINISH, e -> invokeLater(() -> handleUnpackFinishEvent(unpackMonitor)))
                     .registerListener(EventType.ABORTED, e -> invokeLater(this::handleUnpackAbortEvent));
 
+            logPanel.log("Target path: " + dbdHomePath);
             unpackMonitor.start()
                     .exceptionally(throwable -> {
                         Throwable cause = throwable.getCause();
@@ -210,6 +210,8 @@ public class UnpackerPanel extends JPanel {
 
         } catch (InvalidDbdHomePathException e) {
             logPanel.log("Could not find DBD installed in the specified location. Cannot continue.");
+        }
+        finally {
             unpackingFinished();
         }
     }
@@ -228,7 +230,6 @@ public class UnpackerPanel extends JPanel {
         startButton.setVisible(true);
         fullExtractionCheckbox.setVisible(true);
         stopButton.setVisible(false);
-        dirInput.setEnabled(true);
     }
 
 
