@@ -11,7 +11,7 @@ Currently has the following features:
 
 
 ## What does it look like?
-![](readme-resources/sample-screen.png)
+<img src="https://github.com/nickyramone/demode/blob/main/readme-resources/sample-screen.png" width="600">
 
 
 ## What's the status?
