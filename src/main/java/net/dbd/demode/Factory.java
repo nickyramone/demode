@@ -7,7 +7,7 @@ import net.dbd.demode.config.UserSettings;
 import net.dbd.demode.service.*;
 import net.dbd.demode.ui.mainpanel.CleanerPanel;
 import net.dbd.demode.ui.mainpanel.HomePanel;
-import net.dbd.demode.ui.mainpanel.InfoPanel;
+import net.dbd.demode.ui.mainpanel.AppInfoPanel;
 import net.dbd.demode.ui.MainWindow;
 import net.dbd.demode.ui.mainpanel.unpacker.UnpackerPanel;
 import net.dbd.demode.util.Gson;
@@ -94,8 +94,8 @@ public final class Factory {
         return getInstance(CleanerPanel.class, () -> new CleanerPanel(userSettings(), dbdPathService(), fileCleaner()));
     }
 
-    public static InfoPanel infoPanel() {
-        return getInstance(InfoPanel.class, () -> new InfoPanel(appProperties()));
+    public static AppInfoPanel infoPanel() {
+        return getInstance(AppInfoPanel.class, () -> new AppInfoPanel(appProperties()));
     }
 
     public static DbdUnpacker newDbdUnpacker(DbdPakManager dbdPakManager) {

@@ -51,20 +51,19 @@ public class CleanerPanel extends JPanel {
         setBorder(strutBorder(Color.BLUE));
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         add(drawContentPanelTop());
+        add(Box.createRigidArea(new Dimension(0, 10)));
         add(drawContentPanelBottom());
     }
 
     private JPanel drawContentPanelTop() {
+        JLabel label = new JLabel("Cleaner", JLabel.CENTER);
+        changeFontSize(label, 16);
+
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
         panel.setBorder(strutBorder(Color.RED));
-        panel.setBackground(BG_COLOR);
-        panel.setPreferredSize(new Dimension(200, 100));
-        panel.setMaximumSize(new Dimension(200, 100));
-        panel.setMinimumSize(new Dimension(200, 100));
-
-        JLabel label = new JLabel("Cleaner", JLabel.CENTER);
-        changeFontSize(label, 16);
+        panel.setPreferredSize(new Dimension(0, 100));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
         panel.add(label, BorderLayout.CENTER);
 
         return panel;

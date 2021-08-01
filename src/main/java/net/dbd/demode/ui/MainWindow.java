@@ -4,7 +4,7 @@ import net.dbd.demode.config.AppProperties;
 import net.dbd.demode.config.UserSettings;
 import net.dbd.demode.ui.mainpanel.CleanerPanel;
 import net.dbd.demode.ui.mainpanel.HomePanel;
-import net.dbd.demode.ui.mainpanel.InfoPanel;
+import net.dbd.demode.ui.mainpanel.AppInfoPanel;
 import net.dbd.demode.ui.mainpanel.MainButtonPanel;
 import net.dbd.demode.ui.mainpanel.unpacker.UnpackerPanel;
 import net.dbd.demode.util.event.EventListener;
@@ -28,7 +28,7 @@ public class MainWindow extends JFrame {
     private final HomePanel homePanel;
     private final UnpackerPanel unpackerPanel;
     private final CleanerPanel cleanerPanel;
-    private final InfoPanel infoPanel;
+    private final AppInfoPanel appInfoPanel;
     private final EventSupport eventSupport;
 
     private JPanel mainPanel;
@@ -36,7 +36,7 @@ public class MainWindow extends JFrame {
 
 
     public MainWindow(AppProperties appProperties, UserSettings userSettings, HomePanel homePanel, UnpackerPanel unpackerPanel,
-                      CleanerPanel cleanerPanel, InfoPanel infoPanel) {
+                      CleanerPanel cleanerPanel, AppInfoPanel appInfoPanel) {
         super(String.format("%s (v%s) - %s",
                 appProperties.getAppName(),
                 appProperties.getAppVersion(),
@@ -46,7 +46,7 @@ public class MainWindow extends JFrame {
         this.homePanel = homePanel;
         this.unpackerPanel = unpackerPanel;
         this.cleanerPanel = cleanerPanel;
-        this.infoPanel = infoPanel;
+        this.appInfoPanel = appInfoPanel;
         this.eventSupport = new EventSupport();
 
         setIconImage(ResourceFactory.getAppIcon());
@@ -91,7 +91,7 @@ public class MainWindow extends JFrame {
         } else if (option == MainButtonPanel.Option.CLEAN) {
             setContentPanel(cleanerPanel);
         } else if (option == MainButtonPanel.Option.INFO) {
-            setContentPanel(infoPanel);
+            setContentPanel(appInfoPanel);
         }
     }
 

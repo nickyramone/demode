@@ -110,13 +110,15 @@ public class DbdPakManager {
             var multiPakSelection = new MultiPakSelection();
 
             for (var pakFile : pakFiles) {
-                SinglePakSelection singlePakSelection = null;
+                SinglePakSelection singlePakSelection;
                 try {
                     singlePakSelection = selectMissingAndUnverified(pakFile, progressMonitor);
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
-                multiPakSelection.addSinglePakSelection(singlePakSelection);
+                if (singlePakSelection.getTotalFiles() > 0) {
+                    multiPakSelection.addSinglePakSelection(singlePakSelection);
+                }
             }
             progressMonitor.fireFinishEvent();
 

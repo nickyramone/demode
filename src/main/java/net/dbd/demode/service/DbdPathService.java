@@ -51,7 +51,7 @@ public class DbdPathService {
     }
 
 
-    public Optional<Path> findDbdInstallationPath() {
+    public Optional<Path> findDbdHomePath() {
 
         return pathsToCheckForDbd.stream()
                 .filter(this::isValidDbdHomePath)

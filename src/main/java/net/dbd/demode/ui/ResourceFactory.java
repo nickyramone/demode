@@ -27,6 +27,7 @@ public final class ResourceFactory {
         FILE_BROWSER("/images/icons/folder.png"),
         HOME("/images/icons/home.png"),
         INFO("/images/icons/info.png"),
+        MAGNIFYING_GLASS("/images/icons/magnifying-glass.png"),
         UNPACK("/images/icons/unpack.png");
 
         final String imagePath;

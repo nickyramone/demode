@@ -29,6 +29,7 @@ public class UiHelper {
         var button = new JButton(text);
         button.setContentAreaFilled(false);
         button.setOpaque(true);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setBackground(BUTTON_DEFAULT_BG_COLOR);
         button.setForeground(Color.WHITE);
         button.setPreferredSize(new Dimension(120, 30));

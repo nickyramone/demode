@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.dbd.demode.Factory;
 import net.dbd.demode.config.AppProperties;
 import net.dbd.demode.config.UserSettings;
+import net.dbd.demode.pak.PakFile;
 import net.dbd.demode.service.*;
 import net.dbd.demode.service.DbdUnpacker.EventType;
 import net.dbd.demode.service.DbdUnpacker.UnpackMonitor;
@@ -55,20 +56,19 @@ public class UnpackerPanel extends JPanel {
         setBorder(strutBorder(Color.BLUE));
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         add(drawContentPanelTop());
+        add(Box.createRigidArea(new Dimension(0, 10)));
         add(drawContentPanelBottom());
     }
 
     private JPanel drawContentPanelTop() {
+        JLabel label = new JLabel("Unpacker", JLabel.CENTER);
+        changeFontSize(label, 16);
+
         JPanel panel = new JPanel();
         panel.setLayout(new BorderLayout());
         panel.setBorder(strutBorder(Color.RED));
-        panel.setBackground(BG_COLOR);
-        panel.setPreferredSize(new Dimension(200, 100));
-        panel.setMaximumSize(new Dimension(200, 100));
-        panel.setMinimumSize(new Dimension(200, 100));
-
-        JLabel label = new JLabel("Unpacker", JLabel.CENTER);
-        changeFontSize(label, 16);
+        panel.setPreferredSize(new Dimension(0, 100));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
         panel.add(label, BorderLayout.CENTER);
 
         return panel;
@@ -110,8 +110,8 @@ public class UnpackerPanel extends JPanel {
         buttonPanel.add(fullExtractionCheckbox);
 
         JPanel panel = new JPanel();
-        panel.setBackground(BG_COLOR);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(BG_COLOR);
         panel.setAlignmentX(JComponent.CENTER_ALIGNMENT);
         panel.add(simpleProgressPanel);
         panel.add(progressPanel);
@@ -170,29 +170,10 @@ public class UnpackerPanel extends JPanel {
 
         try {
             Path dbdHomePath = Path.of(userSettings.getDbdHomePath());
-            DbdPakManager dbdPakManager = Factory.newDbdPakManager(dbdHomePath);
-            DbdUnpacker unpacker = Factory.newDbdUnpacker(dbdPakManager);
-
-            if (fullExtractionCheckbox.isSelected()) {
-                unpackMonitor = unpacker.unpackAll(dbdHomePath);
-            } else {
-                unpackMonitor = unpacker.unpackMissingAndUnverified(dbdHomePath);
-            }
-
-            unpackMonitor
-                    .registerListener(EventType.FILE_SELECT__BEGIN, e -> invokeLater(() -> handleFileSelectBeginEvent((int) e.getValue())))
-                    .registerListener(EventType.FILE_SELECT__FILE_PROCESSED, e -> invokeLater(this::handleSelectFileScannedEvent))
-                    .registerListener(EventType.FILE_SELECT__FINISH, e -> invokeLater(() -> handleSelectFinishEvent((MultiPakSelection) e.getValue())))
-                    .registerListener(EventType.UNPACK_BEGIN, e -> invokeLater(() -> handleUnpackBeginEvent(unpackMonitor)))
-                    .registerListener(EventType.PAK_EXTRACT_BEGIN, e -> invokeLater(() -> handlePakExtractBeginEvent(unpackMonitor)))
-                    .registerListener(EventType.FILE_EXTRACTED, e -> invokeLater(this::handleFileExtractedEvent))
-                    .registerListener(EventType.BYTES_EXTRACTED, e -> invokeLater(this::handleBytesExtractedEvent))
-                    .registerListener(EventType.PAK_EXTRACT_FINISH, e -> invokeLater(() -> handlePakExtractedEvent((int) e.getValue(), unpackMonitor)))
-                    .registerListener(EventType.UNPACK_FINISH, e -> invokeLater(() -> handleUnpackFinishEvent(unpackMonitor)))
-                    .registerListener(EventType.ABORTED, e -> invokeLater(this::handleUnpackAbortEvent));
-
+            unpackMonitor = getUnpackingMonitor(dbdHomePath);
             logPanel.log("Target path: " + dbdHomePath);
             unpackMonitor.start()
+                    .thenRun(this::unpackingFinished)
                     .exceptionally(throwable -> {
                         Throwable cause = throwable.getCause();
 
@@ -205,15 +186,47 @@ public class UnpackerPanel extends JPanel {
                             log.error("Failed to unpack.", cause);
                             logPanel.log("Encountered an error. Cannot continue.");
                         }
+                        unpackingFinished();
+
                         return null;
                     });
 
         } catch (InvalidDbdHomePathException e) {
             logPanel.log("Could not find DBD installed in the specified location. Cannot continue.");
-        }
-        finally {
             unpackingFinished();
         }
+    }
+
+    private UnpackMonitor getUnpackingMonitor(Path dbdHomePath) {
+        UnpackMonitor monitor;
+        DbdPakManager dbdPakManager = Factory.newDbdPakManager(dbdHomePath);
+        DbdUnpacker unpacker = Factory.newDbdUnpacker(dbdPakManager);
+
+        if (fullExtractionCheckbox.isSelected()) {
+            monitor = unpacker.unpackAll(dbdHomePath);
+        } else {
+            monitor = unpacker.unpackMissingAndUnverified(dbdHomePath);
+        }
+
+        /* the monitor is shared by the EDT thread and the background thread, so in many cases you probably don't want
+           to send the monitor to the EDT handler method and send a copy of the required values instead, as by the time
+           it reaches the handler in EDT, the value could have changed. */
+        monitor
+                .registerListener(EventType.FILE_SELECT__BEGIN, e -> invokeLater(() -> handleFileSelectBeginEvent((int) e.getValue())))
+                .registerListener(EventType.FILE_SELECT__FILE_PROCESSED, e -> invokeLater(this::handleSelectFileScannedEvent))
+                .registerListener(EventType.FILE_SELECT__FINISH, e -> invokeLater(() -> handleSelectFinishEvent((MultiPakSelection) e.getValue())))
+                .registerListener(EventType.UNPACK_BEGIN, e -> invokeLater(() -> handleUnpackBeginEvent(monitor)))
+                .registerListener(EventType.PAK_EXTRACT_BEGIN, e -> invokeLater(() -> handlePakExtractBeginEvent(monitor, (PakFile) e.getValue())))
+                .registerListener(EventType.FILE_EXTRACTED, e -> invokeLater(this::handleFileExtractedEvent))
+                .registerListener(EventType.BYTES_EXTRACTED, e -> invokeLater(this::handleBytesExtractedEvent))
+                .registerListener(EventType.PAK_EXTRACT_FINISH, e -> {
+                    int currentPak = monitor.getCurrentPak();
+                    invokeLater(() -> handlePakExtractFinishEvent((int) e.getValue(), currentPak));
+                })
+                .registerListener(EventType.UNPACK_FINISH, e -> invokeLater(() -> handleUnpackFinishEvent(monitor)))
+                .registerListener(EventType.ABORTED, e -> invokeLater(this::handleUnpackAbortEvent));
+
+        return monitor;
     }
 
 
@@ -234,7 +247,7 @@ public class UnpackerPanel extends JPanel {
 
 
     private void handleFileSelectBeginEvent(int totalFilesToScan) {
-        logPanel.log("Checking which files are already unpacked...");
+        logPanel.log("Analysing which files have already been unpacked...");
         startButton.setVisible(false);
         stopButton.setVisible(true);
         progressPanel.setVisible(false);
@@ -267,8 +280,8 @@ public class UnpackerPanel extends JPanel {
         progressPanel.startTotal(unpackMonitor.getTotalStats(), unpackMonitor.getTotalPaks());
     }
 
-    private void handlePakExtractBeginEvent(UnpackMonitor unpackMonitor) {
-        logPanel.log(String.format("Unpacking package #%d...", unpackMonitor.getCurrentPak()));
+    private void handlePakExtractBeginEvent(UnpackMonitor unpackMonitor, PakFile pakFile) {
+        logPanel.log(String.format("Unpacking package #%d (%s)...", unpackMonitor.getCurrentPak(), pakFile.getFile().getName()));
         progressPanel.startPackage(unpackMonitor.getCurrentPakStats(), unpackMonitor.getCurrentPak());
     }
 
@@ -280,9 +293,9 @@ public class UnpackerPanel extends JPanel {
         progressPanel.refreshBytesExtracted();
     }
 
-    private void handlePakExtractedEvent(int elapsedSeconds, UnpackMonitor monitor) {
+    private void handlePakExtractFinishEvent(int elapsedSeconds, int currentPak) {
         progressPanel.stopPackageProgress();
-        logPanel.log(String.format("Unpacked package #%d in %s.", monitor.getCurrentPak(), TimeFormatUtil.formatTimeUpToYears(elapsedSeconds)));
+        logPanel.log(String.format("Unpacked package #%d in %s.", currentPak, TimeFormatUtil.formatTimeUpToYears(elapsedSeconds)));
     }
 
     private void handleUnpackFinishEvent(UnpackMonitor monitor) {

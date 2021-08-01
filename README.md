@@ -1,5 +1,18 @@
 # demode
-A modding tool for "Dead By Daylight"
+A modding tool for "Dead By Daylight".
+
+Currently has the following features:
+* Unpacker
+  * Smart unpacking: unpack only needed files.
+  * Comprehensive feedback and progress status of each stage of the process.
+    
+* Cleaner
+  * Clean up all files extracted by this app
 
 
-Currently under development.
+## What does it look like?
+![](readme-resources/sample-screen.png)
+
+
+## What's the status?
+It's currently in beta. Also, the roadmap of the project is quite unclear at the moment, as we don't know what's near future of modding DBD. For now, it will work just as an unpacker, but we'll see if in the future there's a possibility of adding more features related to modding.

@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.dbd.demode</groupId>
     <artifactId>demode</artifactId>
@@ -113,6 +114,22 @@
                             </execution>
                         </executions>
                     </plugin>
+
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <version>1.5</version>
+                        <executions>
+                            <execution>
+                                <phase>initialize</phase>
+                                <id>parse-version</id>
+                                <goals>
+                                    <goal>parse-version</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
                     <plugin>
                         <groupId>com.akathist.maven.plugins.launch4j</groupId>
                         <artifactId>launch4j-maven-plugin</artifactId>
@@ -130,7 +147,7 @@
                                     <jar>
                                         ${project.build.directory}/${project.artifactId}-${project.version}-jar-with-dependencies.jar
                                     </jar>
-                                    <icon>src/art/app.ico</icon>
+                                    <icon>src/build/logo_demode.ico</icon>
                                     <errTitle>${project.description}</errTitle>
                                     <classPath>
                                         <mainClass>net.dbd.demode.Boot</mainClass>
@@ -143,11 +160,11 @@
                                         <windowTitle>${project.description}</windowTitle>
                                     </singleInstance>
                                     <versionInfo>
-                                        <fileVersion>${exe.version}</fileVersion>
+                                        <fileVersion>${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.0</fileVersion>
                                         <txtFileVersion>${project.version}</txtFileVersion>
                                         <fileDescription>GUI</fileDescription>
                                         <copyright>Nicky Ramone, 2021</copyright>
-                                        <productVersion>${exe.version}</productVersion>
+                                        <productVersion>1.0.0.0</productVersion>
                                         <txtProductVersion>${project.version}</txtProductVersion>
                                         <productName>${project.description}</productName>
                                         <internalName>${project.artifactId}</internalName>
@@ -157,6 +174,7 @@
                             </execution>
                         </executions>
                     </plugin>
+
                 </plugins>
             </build>
         </profile>

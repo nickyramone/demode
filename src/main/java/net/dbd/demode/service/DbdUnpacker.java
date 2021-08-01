@@ -190,6 +190,7 @@ public class DbdUnpacker {
         try {
             pakExtractor.extract(pakSelection.getPakFile(), pakSelection.getFilePaths(), outputPath);
         } catch (OperationAbortedException e) {
+            // TODO: improve: just let this exception be handled upstream as an exception and not an event
             unpackMonitor.currentPakStats.stop();
             unpackMonitor.totalStats.stop();
             unpackMonitor.fireEvent(EventType.ABORTED);

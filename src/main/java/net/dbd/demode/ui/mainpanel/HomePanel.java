@@ -14,6 +14,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 
+import static net.dbd.demode.ui.common.UiHelper.changeFontSize;
 import static net.dbd.demode.ui.common.UiHelper.strutBorder;
 
 /**
@@ -27,6 +28,8 @@ public class HomePanel extends JPanel {
     private final UserSettings userSettings;
     private final DbdPathService dbdPathService;
 
+    private JTextField homePathInput;
+
 
     public HomePanel(AppProperties appProperties, UserSettings userSettings, DbdPathService dbdPathService) {
         this.appProperties = appProperties;
@@ -37,65 +40,82 @@ public class HomePanel extends JPanel {
         setBackground(BG_COLOR);
 
         add(drawContentPanelTop());
+        add(Box.createRigidArea(new Dimension(0, 10)));
         add(drawContentPanelBottom());
     }
 
 
     private JPanel drawContentPanelTop() {
-        JPanel panel = new JPanel();
-        panel.setBackground(BG_COLOR);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setMinimumSize(new Dimension(Integer.MAX_VALUE, 200));
-        panel.setAlignmentX(JPanel.CENTER_ALIGNMENT);
-        panel.setPreferredSize(new Dimension(0, 100));
-        panel.setBorder(strutBorder(Color.BLACK));
+        String title = String.format("<html>Welcome to <b><i>%s</i></b></html", appProperties.getAppName());
+        JLabel label = new JLabel(title, SwingConstants.CENTER);
+        changeFontSize(label, 16);
 
-        JLabel label = new JLabel("Welcome to " + appProperties.getAppName());
-        UiHelper.changeFontSize(label, 16);
-        panel.add(label);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BorderLayout());
+        panel.setBorder(strutBorder(Color.RED));
+        panel.setPreferredSize(new Dimension(0, 100));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        panel.add(label, BorderLayout.CENTER);
 
         return panel;
     }
 
     private JPanel drawContentPanelBottom() {
-        JPanel panel = new JPanel();
-        panel.setBackground(BG_COLOR);
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setBorder(strutBorder(Color.YELLOW));
-
-        JLabel label = new JLabel("Please, configure paths below.", SwingConstants.CENTER);
-        panel.add(label);
-
-
-        JPanel dbdFolderRow = new JPanel();
-        dbdFolderRow.setBackground(BG_COLOR);
-        dbdFolderRow.setLayout(new FlowLayout());
-        panel.add(dbdFolderRow);
+        JLabel label = new JLabel("Please, configure paths below.");
+        label.setAlignmentX(JComponent.CENTER_ALIGNMENT);
+        label.setBorder(strutBorder(Color.RED));
 
         JLabel dbdFolderInputLabel = new JLabel();
         dbdFolderInputLabel.setText("DBD home path:");
-        dbdFolderRow.add(dbdFolderInputLabel);
 
-        JTextField dirInput = createDbdFolderTextField();
-        dbdFolderRow.add(dirInput);
+        homePathInput = createDbdFolderTextField();
 
-        JLabel button = new JLabel();
-        button.setIcon(ResourceFactory.getIcon(ResourceFactory.Icon.FILE_BROWSER));
-        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        button.addMouseListener(new MouseAdapter() {
+        JLabel browseButton = new JLabel();
+        browseButton.setToolTipText("Browse file system to select folder");
+        browseButton.setIcon(ResourceFactory.getIcon(ResourceFactory.Icon.FILE_BROWSER));
+        browseButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        browseButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 super.mouseClicked(e);
                 JFileChooser fileChooser = new JFileChooser();
                 fileChooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
-                if (fileChooser.showOpenDialog(button) == JFileChooser.APPROVE_OPTION) {
-                    dirInput.setText(fileChooser.getSelectedFile().getAbsolutePath());
+                if (fileChooser.showOpenDialog(browseButton) == JFileChooser.APPROVE_OPTION) {
+                    homePathInput.setText(fileChooser.getSelectedFile().getAbsolutePath());
                 }
             }
         });
-        dbdFolderRow.add(button);
 
+
+        JLabel findButton = new JLabel();
+        findButton.setToolTipText("Try to locate folder automatically");
+        findButton.setIcon(ResourceFactory.getIcon(ResourceFactory.Icon.MAGNIFYING_GLASS));
+        findButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        findButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                locateDbdHomePath();
+            }
+        });
+
+        JPanel dbdFolderRow = new JPanel();
+        dbdFolderRow.setLayout(new FlowLayout());
+        dbdFolderRow.setBackground(BG_COLOR);
+        dbdFolderRow.add(dbdFolderInputLabel);
+        dbdFolderRow.add(homePathInput);
+        dbdFolderRow.add(browseButton);
+        dbdFolderRow.add(findButton);
+
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setPreferredSize(new Dimension(Integer.MAX_VALUE, 0));
+        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        panel.setBackground(BG_COLOR);
+        panel.setBorder(strutBorder(Color.YELLOW));
+
+        panel.add(label);
+        panel.add(dbdFolderRow);
 
         return panel;
     }
@@ -105,7 +125,7 @@ public class HomePanel extends JPanel {
         String dbdPath = userSettings.getDbdHomePath();
 
         if (dbdPath == null) {
-            dbdPath = dbdPathService.findDbdInstallationPath()
+            dbdPath = dbdPathService.findDbdHomePath()
                     .map(Path::toString)
                     .orElse(null);
 
@@ -135,4 +155,10 @@ public class HomePanel extends JPanel {
 
         return dirInput;
     }
+
+
+    public void locateDbdHomePath() {
+        homePathInput.setText(dbdPathService.findDbdHomePath().map(Object::toString).orElse(null));
+    }
+
 }
