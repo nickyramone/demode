@@ -180,4 +180,9 @@
         </profile>
     </profiles>
 
+    <scm>
+        <connection>scm:git:https://github.com/nickyramone/demode.git</connection>
+        <tag>HEAD</tag>
+    </scm>
+
 </project>
