@@ -2,7 +2,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.dbd.demode</groupId>
     <artifactId>demode</artifactId>
-    <version>1.0.0-beta-1</version>
+    <version>1.0.0-beta-2-SNAPSHOT</version>
     <description>demode - A Dead By Daylight modding tool</description>
 
 
@@ -181,7 +181,7 @@
 
     <scm>
         <connection>scm:git:https://github.com/nickyramone/demode.git</connection>
-        <tag>demode-1.0.0-beta-1</tag>
+        <tag>HEAD</tag>
     </scm>
 
 </project>
