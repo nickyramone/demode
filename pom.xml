@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>net.dbd.demode</groupId>
     <artifactId>demode</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-beta-1-SNAPSHOT</version>
     <description>demode - A Dead By Daylight modding tool</description>
 
 
