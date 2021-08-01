@@ -16,3 +16,6 @@ Currently has the following features:
 
 ## What's the status?
 It's currently in beta. Also, the roadmap of the project is quite unclear at the moment, as we don't know what's near future of modding DBD. For now, it will work just as an unpacker, but we'll see if in the future there's a possibility of adding more features related to modding.
+
+## Where to download from?
+From the [releases page](https://github.com/nickyramone/demode/releases).
